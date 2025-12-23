@@ -1,0 +1,5 @@
+module mdict {
+    header "mdict_extern.h"
+    header "mdict_simple_key.h"
+    export *
+}
