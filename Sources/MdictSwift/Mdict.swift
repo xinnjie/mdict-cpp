@@ -1,6 +1,13 @@
 import Foundation
 import mdict
 
+/// Thin Swift wrapper for the C mdict API.
+/// Usage:
+/// ```swift
+/// guard let dict = Mdict(path: "<path>/dict.mdx") else { return }
+/// let meaning = dict.lookup(word: "hello")
+/// let firstKeys = dict.getKeys(limit: 10)
+/// ```
 public class Mdict {
   private var dictHandle: UnsafeMutableRawPointer?
 
