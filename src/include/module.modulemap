@@ -1,0 +1,6 @@
+module mdict_cpp {
+    header "mdict_extern.h"
+    header "mdict_simple_key.h"
+    // Export all symbols from above headers to make them available to Swift
+    export *
+}
