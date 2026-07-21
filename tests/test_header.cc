@@ -81,3 +81,13 @@ TEST(Header, CInterfaceRejectsInvalidArguments) {
   EXPECT_NE(mdict_header_attribute_at(nullptr, 0, &key, &value), 0);
   EXPECT_EQ(mdict_header_close(nullptr), 0);
 }
+
+TEST(Header, DictionaryCInterfaceContainsInitializationErrors) {
+  EXPECT_EQ(mdict_init(nullptr), nullptr);
+  EXPECT_EQ(mdict_init("/path/that/does/not/exist.mdx"), nullptr);
+
+  const auto path = write_header_only_file(
+      "mdict-cpp-invalid-index.mdx", "<Dictionary Encoding=\"UTF-8\"/>");
+  EXPECT_EQ(mdict_init(path.string().c_str()), nullptr);
+  std::filesystem::remove(path);
+}

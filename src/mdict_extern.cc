@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <type_traits>
 #include "include/mdict.h"
 
@@ -113,10 +114,18 @@ int mdict_header_close(mdict_header_t *header) {
  init the dictionary
  */
 void *mdict_init(const char *dictionary_path) {
-  std::string dict_file_path(dictionary_path);
-  auto *mydict = new mdict::Mdict(dict_file_path);
-  mydict->init();
-  return mydict;
+  if (dictionary_path == nullptr) {
+    return nullptr;
+  }
+
+  try {
+    auto dictionary = std::make_unique<mdict::Mdict>(dictionary_path);
+    dictionary->init();
+    return dictionary.release();
+  } catch (...) {
+    // C callers use NULL to represent initialization failure.
+    return nullptr;
+  }
 }
 
 /**
