@@ -12,6 +12,7 @@
 #include <encode/base64.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
@@ -29,6 +30,20 @@
 #include "include/zlib_wrapper.h"
 
 const std::regex re_pattern("(\\s|:|\\.|,|-|_|'|\\(|\\)|#|<|>|!)");
+
+namespace {
+
+std::string normalize_encoding_label(std::string value) {
+  value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
+                return ch == '-' || ch == '_' || std::isspace(ch);
+              }),
+              value.end());
+  std::transform(value.begin(), value.end(), value.begin(),
+                 [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
+  return value;
+}
+
+}  // namespace
 
 namespace mdict {
 
@@ -113,18 +128,19 @@ void Mdict::read_header() {
 
   std::string utf8_temp;
   if (!utf16_to_utf8_header(head_buffer, header_bytes_size, utf8_temp)) {
-    std::cout << "this mdx file is invalid len:" << header_bytes_size << std::endl;
-    return;
+    std::free(head_buffer);
+    throw std::runtime_error("invalid UTF-16LE dictionary header");
   }
+  std::free(head_buffer);
 
-  unsigned char* utf8_buffer = reinterpret_cast<unsigned char*>(&utf8_temp[0]);
-  int utf8_len = static_cast<int>(utf8_temp.size());
-
-  this->header_buffer = std::move(utf8_temp);
-
-  std::string header_text(reinterpret_cast<char*>(utf8_buffer), utf8_len);
-  std::map<std::string, std::string> headinfo;
-  parse_xml_header(header_text, headinfo);
+  this->header_buffer = trim_nulls(utf8_temp);
+  this->header_root = parse_xml_root_element(this->header_buffer);
+  this->header_info.clear();
+  parse_xml_header(this->header_buffer, this->header_info);
+  if (this->header_root.empty()) {
+    throw std::runtime_error("invalid dictionary header XML");
+  }
+  auto &headinfo = this->header_info;
   /// passed
 
   // -----------------------------------------
@@ -168,7 +184,9 @@ void Mdict::read_header() {
   // ---------- version ------------
   // before version 2.0, number is 4 bytes integer
   // version 2.0 and above use 8 bytes
-  std::string sver = headinfo["GeneratedByEngineVersion"];
+  auto version_it = headinfo.find("GeneratedByEngineVersion");
+  std::string sver =
+      version_it == headinfo.end() ? std::string() : version_it->second;
   std::string::size_type sz; // alias of size_t
   
   auto parse_version = [](const std::string& s, float fallback = 0.0f) -> float {
@@ -216,16 +234,27 @@ void Mdict::read_header() {
   }
 
   // ---------- encoding ------------
-  if (headinfo.find("Encoding") != headinfo.end() ||
-      headinfo["Encoding"] == "" || headinfo["Encoding"] == "UTF-8") {
+  auto encoding_it = headinfo.find("Encoding");
+  const std::string declared_encoding =
+      encoding_it == headinfo.end() ? std::string() : encoding_it->second;
+  const std::string normalized_encoding =
+      normalize_encoding_label(declared_encoding);
+
+  // Real dictionaries use UTF8/UTF-8, GBK/GB2312, Big5 and UTF-16 spellings;
+  // MDD commonly declares an empty Encoding even though keys are UTF-16LE.
+  // Sources:
+  // https://github.com/zhansliu/writemdict/blob/f0240b30cabd2f0470d3ee1a0641fc7f8c38dcf5/fileformat.md#header-section
+  // https://github.com/liuyug/mdict-utils/blob/64e15b99aca786dbf65e5a2274f85547f8029f2e/mdict_utils/writer.py#L234-L299
+  if (normalized_encoding.empty() || normalized_encoding == "UTF8") {
     this->encoding = ENCODING_UTF8;
-  } else if (headinfo["Encoding"] == "GBK" ||
-             headinfo["Encoding"] == "GB2312") {
+  } else if (normalized_encoding == "GBK" ||
+             normalized_encoding == "GB2312" ||
+             normalized_encoding == "GB18030") {
     this->encoding = ENCODING_GB18030;
-  } else if (headinfo["Encoding"] == "Big5" || headinfo["Encoding"] == "BIG5") {
+  } else if (normalized_encoding == "BIG5") {
     this->encoding = ENCODING_BIG5;
-  } else if (headinfo["Encoding"] == "utf16" ||
-             headinfo["Encoding"] == "utf-16") {
+  } else if (normalized_encoding == "UTF16" ||
+             normalized_encoding == "UTF16LE") {
     this->encoding = ENCODING_UTF16;
   } else {
     this->encoding = ENCODING_UTF8;
@@ -1420,18 +1449,36 @@ void Mdict::readfile(uint64_t offset, uint64_t len, char *buf) {
  * init the dictionary file
  */
 void Mdict::init() {
-  if (!std::filesystem::exists(filename)) {
-    throw std::runtime_error("File does not exist: " + filename);
-  }
-
-  this->instream = std::ifstream(filename, std::ios::binary);
+  this->init_header();
 
   /* indexing... */
-  this->read_header();
   this->read_key_block_header();
   this->read_key_block_info();
   this->read_record_block_header();
   //  this->decode_record_block(); // don't use this function, it's too slow
+}
+
+void Mdict::init_header() {
+  if (!std::filesystem::exists(filename)) {
+    throw std::runtime_error("File does not exist: " + filename);
+  }
+
+  this->instream.close();
+  this->instream.clear();
+  this->instream = std::ifstream(filename, std::ios::binary);
+  if (!this->instream.is_open()) {
+    throw std::runtime_error("Unable to open file: " + filename);
+  }
+
+  this->read_header();
+}
+
+const std::string &Mdict::header_root_element() const noexcept {
+  return this->header_root;
+}
+
+const std::map<std::string, std::string> &Mdict::header_attributes() const noexcept {
+  return this->header_info;
 }
 
 /**

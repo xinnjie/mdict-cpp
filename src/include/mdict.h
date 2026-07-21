@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <string>  // std::stof
 #include <vector>
 
@@ -309,6 +310,21 @@ class Mdict {
   void init();
 
   /**
+   * Initialize only the MDX/MDD header without reading key or record indexes.
+   */
+  void init_header();
+
+  /**
+   * Return the XML root element from the parsed header.
+   */
+  const std::string &header_root_element() const noexcept;
+
+  /**
+   * Return every XML attribute from the parsed header.
+   */
+  const std::map<std::string, std::string> &header_attributes() const noexcept;
+
+  /**
    * Reduce search range for a phrase
    * @param phrase The phrase to search for
    * @param start Starting position in the dictionary
@@ -453,6 +469,8 @@ class Mdict {
   // ---------------------
 
   std::string header_buffer;
+  std::string header_root;
+  std::map<std::string, std::string> header_info;
 
   // offset part (important)
   // dictionary header part

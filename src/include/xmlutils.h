@@ -13,6 +13,37 @@
 #include <string>
 
 /**
+ * Extracts the root element name from an MDX/MDD header.
+ *
+ * Version 1.x/2.x files conventionally use Dictionary for MDX and
+ * Library_Data for MDD. The format is reverse engineered rather than governed
+ * by a public schema, so callers should retain the returned name instead of
+ * inferring it from a fixed attribute set.
+ *
+ * Format reference:
+ * https://github.com/zhansliu/writemdict/blob/f0240b30cabd2f0470d3ee1a0641fc7f8c38dcf5/fileformat.md#header-section
+ */
+inline std::string parse_xml_root_element(const std::string& dicxml) {
+  size_t pos = 0;
+  while (pos < dicxml.size() &&
+         (dicxml[pos] == ' ' || dicxml[pos] == '\n' || dicxml[pos] == '\r' ||
+          dicxml[pos] == '\t' || dicxml[pos] == '\0')) {
+    ++pos;
+  }
+  if (pos >= dicxml.size() || dicxml[pos] != '<') {
+    return {};
+  }
+
+  const size_t start = ++pos;
+  while (pos < dicxml.size() && dicxml[pos] != ' ' && dicxml[pos] != '\n' &&
+         dicxml[pos] != '\r' && dicxml[pos] != '\t' && dicxml[pos] != '/' &&
+         dicxml[pos] != '>') {
+    ++pos;
+  }
+  return pos == start ? std::string() : dicxml.substr(start, pos - start);
+}
+
+/**
  * Parses XML header information from a string and extracts attributes into a
  * map This function handles a simplified XML format where the input is expected
  * to be a single self-closing tag with attributes in the format key="value"

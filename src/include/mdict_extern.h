@@ -32,6 +32,36 @@ typedef enum {
   MDICT_ENCODING_HEX = 1      // Returns raw hex string
 } mdict_encoding_t;
 
+/** Opaque, immutable snapshot of an MDX/MDD XML header. */
+typedef struct mdict_header mdict_header_t;
+
+/**
+ * Read only the XML header from an MDX/MDD file.
+ *
+ * This does not read key or record indexes. Returns NULL for invalid input or
+ * when the file cannot be opened. Strings returned by the accessors are
+ * borrowed and remain valid until mdict_header_close is called.
+ */
+mdict_header_t *mdict_header_open(const char *path);
+
+/** Return the XML root element, or NULL when header is NULL. */
+const char *mdict_header_root_element(const mdict_header_t *header);
+
+/** Return the number of XML attributes, or zero when header is NULL. */
+uint64_t mdict_header_attribute_count(const mdict_header_t *header);
+
+/**
+ * Return one attribute by index.
+ *
+ * Returns 0 on success and non-zero for invalid arguments or an out-of-range
+ * index. key and value receive borrowed pointers owned by header.
+ */
+int mdict_header_attribute_at(const mdict_header_t *header, uint64_t index,
+                              const char **key, const char **value);
+
+/** Destroy a header snapshot. A NULL header is accepted. */
+int mdict_header_close(mdict_header_t *header);
+
 /**
  * Initialize a dictionary from a file
  * @param dictionary_path Path to the dictionary file (.mdx or .mdd)
