@@ -39,3 +39,7 @@ add_test(NAME test_binutils COMMAND test_binutils)
 add_executable(test_ripemd128 test_ripemd128.cc)
 target_link_libraries(test_ripemd128 GTest GTestMain mdict)
 add_test(NAME test_ripemd128 COMMAND test_ripemd128)
+
+add_executable(test_header test_header.cc)
+target_link_libraries(test_header GTest GTestMain mdict Miniz)
+add_test(NAME test_header COMMAND test_header)

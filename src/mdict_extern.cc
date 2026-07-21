@@ -18,6 +18,11 @@
 #include <type_traits>
 #include "include/mdict.h"
 
+struct mdict_header {
+  std::string root_element;
+  std::map<std::string, std::string> attributes;
+};
+
 /**
   实现 mdict_extern.h中的方法
  */
@@ -60,6 +65,49 @@ std::string mime_detect(const std::string &filename) {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+mdict_header_t *mdict_header_open(const char *path) {
+  if (path == nullptr) {
+    return nullptr;
+  }
+
+  try {
+    mdict::Mdict dictionary(path);
+    dictionary.init_header();
+    return new mdict_header{dictionary.header_root_element(),
+                            dictionary.header_attributes()};
+  } catch (...) {
+    // No C++ exception may cross the C ABI boundary.
+    return nullptr;
+  }
+}
+
+const char *mdict_header_root_element(const mdict_header_t *header) {
+  return header == nullptr ? nullptr : header->root_element.c_str();
+}
+
+uint64_t mdict_header_attribute_count(const mdict_header_t *header) {
+  return header == nullptr ? 0 : static_cast<uint64_t>(header->attributes.size());
+}
+
+int mdict_header_attribute_at(const mdict_header_t *header, uint64_t index,
+                              const char **key, const char **value) {
+  if (header == nullptr || key == nullptr || value == nullptr ||
+      index >= header->attributes.size()) {
+    return 1;
+  }
+
+  auto attribute = header->attributes.cbegin();
+  std::advance(attribute, static_cast<std::ptrdiff_t>(index));
+  *key = attribute->first.c_str();
+  *value = attribute->second.c_str();
+  return 0;
+}
+
+int mdict_header_close(mdict_header_t *header) {
+  delete header;
+  return 0;
+}
 
 /**
  init the dictionary
